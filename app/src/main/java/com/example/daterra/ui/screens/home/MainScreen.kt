@@ -1,7 +1,17 @@
 package com.example.daterra.ui.screens.home
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,12 +45,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.daterra.R
 import com.example.daterra.navigation.Screen
 import com.example.daterra.ui.theme.*
-import com.example.daterra.data.model.ProductoPrioritario
 import com.example.daterra.data.model.PuntoReciclaje
 import com.example.daterra.ui.viewmodel.MapViewModel
+import com.google.android.gms.location.LocationServices
 import com.google.maps.android.compose.*
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 
+@SuppressLint("MissingPermission")
 @Composable
 fun MainScreen(
     navController: NavController,
@@ -49,21 +61,62 @@ fun MainScreen(
     nombreUsuario: String = "Giuseppe"
 ) {
     var isMapExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    // Escuchamos los puntos desde el ViewModel
+    // Controlador nativo de ubicación de Google
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
     val puntos by mapViewModel.puntosFiltrados.collectAsState()
+    val puntoDestacado by mapViewModel.puntoMasCercano.collectAsState()
 
-    if (isMapExpanded) {
-        // Le pasamos el ViewModel a la pantalla expandida
-        ExpandedMapScreen(mapViewModel = mapViewModel, onBack = { isMapExpanded = false })
-    } else {
-        HomeScreenContainer(
-            navController = navController,
-            onExpandMap = { isMapExpanded = true },
-            onLogout = onLogout,
-            nombreUsuario = nombreUsuario,
-            puntos = puntos // Le pasamos los puntos al contenedor
+    // Lanzador interactivo que gestiona la solicitud de permisos de ubicación
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+
+        if (fineLocationGranted || coarseLocationGranted) {
+            // Si el usuario acepta, extraemos su posición exacta real
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    mapViewModel.actualizarUbicacionActual(LatLng(it.latitude, it.longitude))
+                }
+            }
+        }
+    }
+
+    // Efecto que se dispara al abrir la app para solicitar el GPS de inmediato
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
         )
+    }
+
+    // Transición elegante entre el Inicio y el Mapa Expandido
+    AnimatedContent(
+        targetState = isMapExpanded,
+        transitionSpec = {
+            (slideInVertically(initialOffsetY = { it }) + fadeIn()) togetherWith
+                    (slideOutVertically(targetOffsetY = { it }) + fadeOut())
+        },
+        label = "TransicionMapa"
+    ) { expanded ->
+        if (expanded) {
+            ExpandedMapScreen(mapViewModel = mapViewModel, onBack = { isMapExpanded = false })
+        } else {
+            HomeScreenContainer(
+                navController = navController,
+                onExpandMap = { isMapExpanded = true },
+                onLogout = onLogout,
+                nombreUsuario = nombreUsuario,
+                puntos = puntos,
+                puntoDestacado = puntoDestacado
+            )
+        }
     }
 }
 
@@ -73,11 +126,12 @@ fun HomeScreenContainer(
     onExpandMap: () -> Unit,
     onLogout: () -> Unit,
     nombreUsuario: String,
-    puntos: List<PuntoReciclaje> // Recibe los puntos
+    puntos: List<PuntoReciclaje>,
+    puntoDestacado: PuntoReciclaje?
 ) {
     Scaffold(
         topBar = { HeaderSection() },
-        bottomBar = { DaterraBottomNavigation(navController = navController) },
+        bottomBar = { DaterraBottomNavigation(navController = navController, onMapClick = onExpandMap) },
         containerColor = DaterraBackground
     ) { paddingValues ->
         Column(
@@ -109,28 +163,53 @@ fun HomeScreenContainer(
                 )
             }
 
-            // Llamamos al mapa real y le pasamos los puntos y la acción de expandir
-            MapaRealSection(puntos = puntos, onExpandMap = onExpandMap)
-
+            MapaPreviaSection(onMapClick = onExpandMap)
             ElegantDivider()
             EstadoTerritorioSection()
-
             ElegantDivider()
             QueReciclarHoySection()
-
             ElegantDivider()
-            PuntoDestacadoSection()
-
-            ElegantDivider()
-            TendenciasSection()
-
-            ElegantDivider()
-            ProductosPrioritariosSection()
-
-            ElegantDivider()
-            IndiceDaterraSection()
-
+            PuntoDestacadoSection(punto = puntoDestacado)
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+fun MapaPreviaSection(onMapClick: () -> Unit) {
+    val santiagoCentro = LatLng(-33.4482, -70.6693)
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(santiagoCentro, 9.5f)
+    }
+
+    Column {
+        Text("Mapa de Puntos Limpios", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(16.dp))
+        ) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                uiSettings = MapUiSettings(
+                    zoomControlsEnabled = false,
+                    scrollGesturesEnabled = false,
+                    zoomGesturesEnabled = false,
+                    rotationGesturesEnabled = false
+                )
+            )
+
+            // Capa superior transparente que intercepta el clic
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Transparent)
+                    .clickable { onMapClick() }
+            )
         }
     }
 }
@@ -184,49 +263,6 @@ fun HeaderSection() {
                     color = Color.White
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun MapaRealSection(puntos: List<PuntoReciclaje>, onExpandMap: () -> Unit) {
-    val santiagoCentro = LatLng(-33.4489, -70.6693)
-    val cameraPositionState = rememberCameraPositionState {
-        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(santiagoCentro, 11f)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(250.dp)
-            .clip(RoundedCornerShape(16.dp))
-    ) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
-        ) {
-            puntos.forEach { punto ->
-                if(punto.latitude != 0.0 && punto.longitude != 0.0) {
-                    Marker(
-                        state = MarkerState(position = LatLng(punto.latitude, punto.longitude)),
-                        title = punto.name,
-                        snippet = punto.address
-                    )
-                }
-            }
-        }
-
-        // Botón para expandir el mapa
-        IconButton(
-            onClick = onExpandMap,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
-                .background(Color.White, CircleShape)
-                .size(36.dp)
-                .shadow(2.dp, CircleShape)
-        ) {
-            Icon(Icons.Default.OpenInFull, contentDescription = "Expandir", modifier = Modifier.size(20.dp), tint = Color.DarkGray)
         }
     }
 }
@@ -311,123 +347,67 @@ fun RecycleCard(title: String, subtitle: String, icon: ImageVector, bgColor: Col
 }
 
 @Composable
-fun PuntoDestacadoSection() {
+fun PuntoDestacadoSection(punto: PuntoReciclaje?) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Punto limpio destacado", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
+            Text("Punto limpio más cercano", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
             Text("Ver todos", fontSize = 14.sp, color = DaterraPrimary, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(modifier = Modifier.padding(12.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.LightGray)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Punto Verde Providencia", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("Abierto hasta 19:00", color = DaterraPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("Recibe: Plástico, Vidrio, Cartón...", fontSize = 12.sp, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(progress = 0.92f, color = DaterraPrimary, modifier = Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-}
 
-@Composable
-fun TendenciasSection() {
-    Column {
-        Text("Tendencias del mes", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TendenciaCard("+18%", "Plástico", true, Modifier.weight(1f))
-            TendenciaCard("-7%", "Vidrio", false, Modifier.weight(1f))
-            TendenciaCard("+23%", "Electrónicos", true, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-fun TendenciaCard(valor: String, material: String, positivo: Boolean, modifier: Modifier) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(1.dp), modifier = modifier) {
-        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(if (positivo) Icons.Default.TrendingUp else Icons.Default.TrendingDown, contentDescription = null, tint = if (positivo) DaterraPrimary else Color.Red)
-            Text(valor, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = if (positivo) DaterraPrimary else Color.Red)
-            Text(material, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-fun ProductosPrioritariosSection() {
-    val context = LocalContext.current
-
-    val productos = listOf(
-        ProductoPrioritario("Neumáticos", Icons.Outlined.DonutLarge, "https://economiacircular.mma.gob.cl/neumaticos/"),
-        ProductoPrioritario("Envases y Embalajes", Icons.Outlined.Inventory2, "http://economiacircular.mma.gob.cl/envases-y-embalajes/"),
-        ProductoPrioritario("Aceite Lubricante", Icons.Outlined.WaterDrop, "https://economiacircular.mma.gob.cl/aceites-lubricantes/"),
-        ProductoPrioritario("Textiles", Icons.Outlined.Checkroom, "https://economiacircular.mma.gob.cl/textiles/estrategia/"),
-        ProductoPrioritario("Aparatos eléctricos y electrónicos", Icons.Outlined.Devices, "https://economiacircular.mma.gob.cl/aparatos-electricos-y-electronicos/"),
-        ProductoPrioritario("Baterías", Icons.Outlined.BatteryStd, "https://economiacircular.mma.gob.cl/baterias/")
-    )
-
-    Column {
-        Text(
-            text = "Productos Prioritarios",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = DaterraText
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(productos) { producto ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .width(90.dp)
-                        .clickable {
-                            val uri = Uri.parse(producto.url)
-                            val intent = Intent(Intent.ACTION_VIEW, uri)
-                            context.startActivity(intent)
-                        }
-                ) {
+        if (punto != null) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(70.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE0E0E0)),
+                            .background(Color(0xFFE8F5E9)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = producto.icono,
-                            contentDescription = producto.nombre,
-                            modifier = Modifier.size(32.dp),
-                            tint = Color(0xFF1B365D)
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = DaterraPrimary,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(punto.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DaterraText)
+                        Text(
+                            text = if (punto.isOpen) "Abierto actualmente" else "Cerrado",
+                            color = if (punto.isOpen) DaterraPrimary else Color.Red,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(punto.address, fontSize = 12.sp, color = Color.Gray, maxLines = 1)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Recibe: ${punto.materials.joinToString(", ")}",
+                            fontSize = 12.sp,
+                            color = DaterraText,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2
+                        )
+                    }
+                }
+            }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(modifier = Modifier.padding(24.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = producto.nombre,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = DaterraText,
+                        text = "No encontramos ningún punto de reciclaje operativo a menos de 500 metros de tu ubicación.",
                         textAlign = TextAlign.Center,
-                        maxLines = 3
+                        color = Color.Gray,
+                        fontSize = 14.sp
                     )
                 }
             }
@@ -436,25 +416,7 @@ fun ProductosPrioritariosSection() {
 }
 
 @Composable
-fun IndiceDaterraSection() {
-    Column {
-        Text("Índice Daterra™", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
-        Spacer(modifier = Modifier.height(12.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Eco, contentDescription = null, tint = DaterraPrimary, modifier = Modifier.size(48.dp))
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text("82/100", fontWeight = FontWeight.Bold, fontSize = 32.sp)
-                    Text("Índice de gestión del reciclaje", fontSize = 12.sp, color = Color.Gray)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DaterraBottomNavigation(navController: NavController) {
+fun DaterraBottomNavigation(navController: NavController, onMapClick: () -> Unit = {}) {
     val navBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry.value?.destination?.route
 
@@ -473,18 +435,24 @@ fun DaterraBottomNavigation(navController: NavController) {
             icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
             label = { Text("Inicio") }
         )
+
         NavigationBarItem(
             selected = false,
-            onClick = { /* TODO: Navegar a Mapa */ },
+            onClick = {
+                if (currentRoute == Screen.Inicio.route) {
+                    onMapClick() // Expande la animación del mapa
+                } else {
+                    navController.navigate(Screen.Inicio.route) {
+                        popUpTo(Screen.Inicio.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            },
             icon = { Icon(Icons.Outlined.Map, contentDescription = "Mapa") },
             label = { Text("Mapa") }
         )
-        NavigationBarItem(
-            selected = false,
-            onClick = { /* TODO: Navegar a Reportes */ },
-            icon = { Icon(Icons.Outlined.BarChart, contentDescription = "Reportes") },
-            label = { Text("Reportes") }
-        )
+
         NavigationBarItem(
             selected = currentRoute == Screen.Aprender.route,
             onClick = {
@@ -517,19 +485,25 @@ fun DaterraBottomNavigation(navController: NavController) {
 }
 
 // =========================================================================
-// PANTALLA DE MAPA EXPANDIDO (CONECTADA AL VIEWMODEL Y GOOGLE MAPS)
+// PANTALLA DE MAPA EXPANDIDO (CONECTADA AL GPS REAL)
 // =========================================================================
 
 @Composable
 fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
     val puntos by mapViewModel.puntosFiltrados.collectAsState()
     val filtroSeleccionado by mapViewModel.filtroSeleccionado.collectAsState()
+    val miUbicacion by mapViewModel.ubicacionUsuario.collectAsState()
+
     var puntoSeleccionado by remember(puntos) { mutableStateOf(puntos.firstOrNull()) }
     val categoriasFiltro = listOf("Todos", "Plástico", "Vidrio", "Cartón", "Electrónicos")
 
-    val santiagoCentro = LatLng(-33.4489, -70.6693)
     val cameraPositionState = rememberCameraPositionState {
-        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(santiagoCentro, 11f)
+        position = CameraPosition.fromLatLngZoom(miUbicacion, 15f)
+    }
+
+    // Centrar la cámara automáticamente si la ubicación cambia
+    LaunchedEffect(miUbicacion) {
+        cameraPositionState.position = CameraPosition.fromLatLngZoom(miUbicacion, 15f)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(DaterraBackground)) {
@@ -570,7 +544,9 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
 
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState
+                cameraPositionState = cameraPositionState,
+                properties = MapProperties(isMyLocationEnabled = true),
+                uiSettings = MapUiSettings(myLocationButtonEnabled = true)
             ) {
                 puntos.forEach { punto ->
                     if (punto.latitude != 0.0 && punto.longitude != 0.0) {
@@ -580,7 +556,7 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
                             snippet = punto.address,
                             onClick = {
                                 puntoSeleccionado = punto
-                                false // Devuelve false para que la cámara y el título sigan funcionando por defecto
+                                false
                             }
                         )
                     }
@@ -603,7 +579,7 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
 
                         Text(punto.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DaterraText)
                         Text(
-                            text = if (punto.isOpen) "Abierto hasta ${punto.closingTime}" else "Cerrado",
+                            text = if (punto.isOpen) "Abierto actualmente" else "Cerrado",
                             color = if (punto.isOpen) DaterraPrimary else Color.Red,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
@@ -615,7 +591,17 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
 
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Button(onClick = { /* Navegar a Google Maps app */ }, colors = ButtonDefaults.buttonColors(containerColor = DaterraPrimary)) {
+                            val uriContext = LocalContext.current
+                            Button(
+                                onClick = {
+                                    // Funcionalidad nativa: Abre Google Maps con la ruta trazada
+                                    val gmmIntentUri = Uri.parse("google.navigation:q=${punto.latitude},${punto.longitude}")
+                                    val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                                    mapIntent.setPackage("com.google.android.apps.maps")
+                                    uriContext.startActivity(mapIntent)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = DaterraPrimary)
+                            ) {
                                 Text("Cómo llegar")
                             }
                         }

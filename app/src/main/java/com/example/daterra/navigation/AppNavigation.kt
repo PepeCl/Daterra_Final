@@ -8,28 +8,61 @@ import androidx.navigation.compose.rememberNavController
 import com.example.daterra.ui.screens.home.MainScreen
 import com.example.daterra.ui.screens.learn.AprenderScreen
 import com.example.daterra.ui.screens.profile.PerfilScreen
+import com.example.daterra.ui.screens.auth.LoginScreen // Asegúrate de importar tus pantallas
+import com.example.daterra.ui.screens.auth.RegisterScreen
 import com.example.daterra.ui.viewmodel.MapViewModel
 
 @Composable
 fun AppNavigation() {
-    // El navController es el encargado de gestionar el historial de pantallas
     val navController = rememberNavController()
-
-    // Instanciamos el ViewModel del mapa.
-    // Al usar viewModel(), Compose se asegura de que este objeto sobreviva
-    // aunque el usuario navegue a otras pantallas y vuelva.
     val mapViewModel: MapViewModel = viewModel()
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Inicio.route // Pantalla inicial del MVP
+        // AQUÍ ESTÁ LA MAGIA: Cambiamos el punto de partida al Login
+        startDestination = Screen.Login.route
     ) {
+        // --- RUTAS DE AUTENTICACIÓN ---
+
+        composable(Screen.Login.route) {
+            LoginScreen(
+                onNavigateToRegister = {
+                    navController.navigate("registro") // O usa Screen.Registro.route si lo creaste
+                },
+                onNavigateToMain = {
+                    // Al entrar con éxito, borramos el Login del historial para no poder volver atrás con el botón del celular
+                    navController.navigate(Screen.Inicio.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // Si creaste un "object Registro : Screen("registro")" en tu Screen.kt, úsalo aquí.
+        // Si no, puedes usar directamente el String "registro".
+        composable("registro") {
+            RegisterScreen(
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onNavigateToMain = {
+                    navController.navigate(Screen.Inicio.route) {
+                        // Borramos todo el historial de registro y login al entrar a la app
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // --- RUTAS PRINCIPALES DE LA APP ---
+
         composable(Screen.Inicio.route) {
             MainScreen(
                 navController = navController,
-                mapViewModel = mapViewModel, // <-- Le inyectamos el ViewModel a la pantalla
+                mapViewModel = mapViewModel,
                 onLogout = {
-                    // Al cerrar sesión, limpiamos el historial para que no puedan volver atrás
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Inicio.route) { inclusive = true }
                     }
