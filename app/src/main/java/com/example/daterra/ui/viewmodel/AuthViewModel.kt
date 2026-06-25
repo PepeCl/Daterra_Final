@@ -2,7 +2,9 @@ package com.example.daterra.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
+// Importa tu cliente Retrofit y LoginRequest según tu estructura de paquetes
+import com.example.daterra.data.remote.api.RetrofitClient
+import com.example.daterra.data.remote.api.LoginRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,12 +13,13 @@ import kotlinx.coroutines.launch
 // 1. Definimos los posibles estados de la pantalla de autenticación
 sealed class AuthState {
     object Idle : AuthState() // Estado inicial, esperando acción
-    object Loading : AuthState() // Cargando (se está comunicando con AWS)
+    object Loading : AuthState() // Cargando (se está comunicando con Render)
     data class Success(val message: String) : AuthState() // Registro exitoso
+    data class Authenticated(val token: String) : AuthState() // Login exitoso (recibe el Token JWT)
     data class Error(val error: String) : AuthState() // Falló la conexión o la validación
 }
 
-// 2. Definimos el objeto exacto que enviaremos a la API (Backend)
+// 2. Definimos el objeto exacto que enviaremos a la API para el Registro
 data class UserRegisterRequest(
     val rut: String,
     val dv: String,
@@ -33,28 +36,60 @@ data class UserRegisterRequest(
 
 class AuthViewModel : ViewModel() {
 
-    // Estado reactivo que la UI (RegisterScreen) estará observando
+    // Estado reactivo que la UI estará observando
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
+    // =========================================================
+    // FUNCIÓN DE REGISTRO
+    // =========================================================
     fun registerUser(userRequest: UserRegisterRequest) {
-        // 1. Cambiamos el estado a "Cargando" para mostrar un spinner en la pantalla
+        // 1. Cambiamos el estado a "Cargando"
         _authState.value = AuthState.Loading
 
         viewModelScope.launch {
             try {
-                // TODO: Aquí conectaremos con Retrofit en el siguiente paso.
-                // Quedará algo así: val response = RetrofitClient.instance.register(userRequest)
+                // 2. Llamada real al backend en Render
+                val response = RetrofitClient.authApi.registerUser(userRequest)
 
-                // SIMULACIÓN: Simulamos una demora de red de 2 segundos
-                delay(2000)
-
-                // 2. Si todo sale bien, avisamos que fue un éxito
-                _authState.value = AuthState.Success("¡Usuario creado con éxito!")
+                // 3. Evaluamos la respuesta HTTP
+                if (response.isSuccessful) {
+                    _authState.value = AuthState.Success("¡Usuario creado con éxito!")
+                } else {
+                    // Si el backend rechaza el registro (ej. HTTP 400 por correo duplicado)
+                    _authState.value = AuthState.Error("Error al registrar: Código HTTP ${response.code()}")
+                }
 
             } catch (e: Exception) {
-                // 3. Si se cae el internet o falla AWS, atrapamos el error
-                _authState.value = AuthState.Error(e.message ?: "Error desconocido al contactar al servidor.")
+                // 4. Capturamos errores de red (sin internet, servidor caído)
+                _authState.value = AuthState.Error("Error de conexión: ${e.message ?: "Desconocido"}")
+            }
+        }
+    }
+
+    // =========================================================
+    // FUNCIÓN DE LOGIN
+    // =========================================================
+    fun loginUser(email: String, contrasena: String, tokenManager: TokenManager) {
+        _authState.value = AuthState.Loading
+
+        viewModelScope.launch {
+            try {
+                val loginRequest = LoginRequest(email = email, password = contrasena)
+                val response = RetrofitClient.authApi.loginUser(loginRequest)
+
+                if (response.isSuccessful && response.body() != null) {
+                    val tokenRecibido = response.body()!!.token
+
+                    // ¡AQUÍ GUARDAMOS EL TOKEN EN EL TELÉFONO!
+                    tokenManager.saveToken(tokenRecibido)
+
+                    _authState.value = AuthState.Authenticated(tokenRecibido)
+                } else {
+                    _authState.value = AuthState.Error("Credenciales incorrectas: Código HTTP ${response.code()}")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Error de red: ${e.localizedMessage}")
             }
         }
     }

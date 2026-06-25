@@ -8,29 +8,33 @@ import androidx.navigation.compose.rememberNavController
 import com.example.daterra.ui.screens.home.MainScreen
 import com.example.daterra.ui.screens.learn.AprenderScreen
 import com.example.daterra.ui.screens.profile.PerfilScreen
-import com.example.daterra.ui.screens.auth.LoginScreen // Asegúrate de importar tus pantallas
+import com.example.daterra.ui.screens.auth.LoginScreen
 import com.example.daterra.ui.screens.auth.RegisterScreen
 import com.example.daterra.ui.viewmodel.MapViewModel
+// IMPORTA EL NUEVO VIEWMODEL
+import com.example.daterra.ui.viewmodel.AuthViewModel
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val mapViewModel: MapViewModel = viewModel()
 
+    // 1. INSTANCIA EL AUTHVIEWMODEL AQUÍ
+    val authViewModel: AuthViewModel = viewModel()
+
     NavHost(
         navController = navController,
-        // AQUÍ ESTÁ LA MAGIA: Cambiamos el punto de partida al Login
         startDestination = Screen.Login.route
     ) {
         // --- RUTAS DE AUTENTICACIÓN ---
 
         composable(Screen.Login.route) {
             LoginScreen(
+                authViewModel = authViewModel, // 2. PÁSALO AL LOGIN
                 onNavigateToRegister = {
-                    navController.navigate("registro") // O usa Screen.Registro.route si lo creaste
+                    navController.navigate("registro")
                 },
                 onNavigateToMain = {
-                    // Al entrar con éxito, borramos el Login del historial para no poder volver atrás con el botón del celular
                     navController.navigate(Screen.Inicio.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -38,10 +42,9 @@ fun AppNavigation() {
             )
         }
 
-        // Si creaste un "object Registro : Screen("registro")" en tu Screen.kt, úsalo aquí.
-        // Si no, puedes usar directamente el String "registro".
         composable("registro") {
             RegisterScreen(
+                authViewModel = authViewModel, // 3. PÁSALO TAMBIÉN AL REGISTRO (si ya lo actualizaste para recibirlo)
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
@@ -49,7 +52,6 @@ fun AppNavigation() {
                 },
                 onNavigateToMain = {
                     navController.navigate(Screen.Inicio.route) {
-                        // Borramos todo el historial de registro y login al entrar a la app
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }

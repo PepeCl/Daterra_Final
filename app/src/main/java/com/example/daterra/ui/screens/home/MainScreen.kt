@@ -485,7 +485,7 @@ fun DaterraBottomNavigation(navController: NavController, onMapClick: () -> Unit
 }
 
 // =========================================================================
-// PANTALLA DE MAPA EXPANDIDO (CONECTADA AL GPS REAL)
+// PANTALLA DE MAPA EXPANDIDO (CONECTADA AL GPS NATIVO)
 // =========================================================================
 
 @Composable

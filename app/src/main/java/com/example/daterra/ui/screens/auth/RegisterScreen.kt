@@ -29,12 +29,11 @@ import com.example.daterra.ui.viewmodel.UserRegisterRequest
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToMain: () -> Unit,
-    authViewModel: AuthViewModel = viewModel() // Inyectamos el ViewModel
+    authViewModel: AuthViewModel = viewModel()
 ) {
-    // Escuchamos el estado del ViewModel (Idle, Loading, Success, Error)
     val authState by authViewModel.authState.collectAsState()
 
-    // 1. Estados para los valores (11 campos)
+    // Estados para los valores
     var rut by remember { mutableStateOf("") }
     var dv by remember { mutableStateOf("") }
     var primerNombre by remember { mutableStateOf("") }
@@ -47,7 +46,7 @@ fun RegisterScreen(
     var telefono by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // 2. Estados para errores
+    // Estados para errores
     var rutError by remember { mutableStateOf<String?>(null) }
     var dvError by remember { mutableStateOf<String?>(null) }
     var pNombreError by remember { mutableStateOf<String?>(null) }
@@ -58,10 +57,9 @@ fun RegisterScreen(
     var telefonoError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
-    // Regex para validar solo letras y espacios
+    // Regex para validar solo letras y espacios (para el botón de registro)
     val soloLetrasRegex = "^[a-zA-ZáéíóúÁÉÍÓÚñÑ ]+$".toRegex()
 
-    // Reaccionamos automáticamente si el estado cambia a "Success"
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
             onNavigateToMain() // Viaja a la pantalla principal
@@ -69,7 +67,7 @@ fun RegisterScreen(
         }
     }
 
-    // 3. Función de validación maestra
+    // Función de validación maestra
     fun validateForm(): Boolean {
         var isValid = true
 
@@ -140,11 +138,15 @@ fun RegisterScreen(
         Text("Crear Cuenta", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = DaterraPrimary)
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- FILA 1: RUT Y DV ---
+        // --- RUT Y DV ---
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = rut,
-                onValueChange = { if (it.all { char -> char.isDigit() }) { rut = it; rutError = null } },
+                onValueChange = { input ->
+                    // LÍMITE: Solo números, máximo 8 caracteres
+                    rut = input.filter { it.isDigit() }.take(8)
+                    rutError = null
+                },
                 label = { Text("RUT (Sin puntos)") },
                 modifier = Modifier.weight(0.7f),
                 singleLine = true,
@@ -154,7 +156,11 @@ fun RegisterScreen(
             )
             OutlinedTextField(
                 value = dv,
-                onValueChange = { if (it.length <= 1) { dv = it.uppercase(); dvError = null } },
+                onValueChange = { input ->
+                    // LÍMITE: Solo números o K, máximo 1 carácter, forzado a mayúscula
+                    dv = input.filter { it.isDigit() || it.equals('k', ignoreCase = true) }.take(1).uppercase()
+                    dvError = null
+                },
                 label = { Text("DV") },
                 modifier = Modifier.weight(0.3f),
                 singleLine = true,
@@ -166,11 +172,15 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- FILA 2: NOMBRES ---
+        // --- NOMBRES ---
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = primerNombre,
-                onValueChange = { primerNombre = it; pNombreError = null },
+                onValueChange = { input ->
+                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
+                    primerNombre = input.filter { it.isLetter() || it == ' ' }.take(50)
+                    pNombreError = null
+                },
                 label = { Text("1er Nombre") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -180,7 +190,10 @@ fun RegisterScreen(
             )
             OutlinedTextField(
                 value = segundoNombre,
-                onValueChange = { segundoNombre = it },
+                onValueChange = { input ->
+                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
+                    segundoNombre = input.filter { it.isLetter() || it == ' ' }.take(50)
+                },
                 label = { Text("2do Nombre (Opc)") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -190,11 +203,15 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- FILA 3: APELLIDOS ---
+        // --- APELLIDOS ---
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = primerApellido,
-                onValueChange = { primerApellido = it; pApellidoError = null },
+                onValueChange = { input ->
+                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
+                    primerApellido = input.filter { it.isLetter() || it == ' ' }.take(50)
+                    pApellidoError = null
+                },
                 label = { Text("1er Apellido") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -204,7 +221,10 @@ fun RegisterScreen(
             )
             OutlinedTextField(
                 value = segundoApellido,
-                onValueChange = { segundoApellido = it },
+                onValueChange = { input ->
+                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
+                    segundoApellido = input.filter { it.isLetter() || it == ' ' }.take(50)
+                },
                 label = { Text("2do Apellido (Opc)") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -217,7 +237,11 @@ fun RegisterScreen(
         // --- EMAIL ---
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; emailError = null },
+            onValueChange = { input ->
+                // LÍMITE: Sin espacios, máximo 100 caracteres
+                email = input.filter { !it.isWhitespace() }.take(100)
+                emailError = null
+            },
             label = { Text("Correo Electrónico") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -228,11 +252,15 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // --- FILA 4: UBICACIÓN ---
+        // --- UBICACIÓN ---
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = direccion,
-                onValueChange = { direccion = it; direccionError = null },
+                onValueChange = { input ->
+                    // LÍMITE: Máximo 100 caracteres (permite letras, números y puntuación básica para direcciones)
+                    direccion = input.take(100)
+                    direccionError = null
+                },
                 label = { Text("Calle y número") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -242,7 +270,11 @@ fun RegisterScreen(
             )
             OutlinedTextField(
                 value = comuna,
-                onValueChange = { comuna = it; comunaError = null },
+                onValueChange = { input ->
+                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
+                    comuna = input.filter { it.isLetter() || it == ' ' }.take(50)
+                    comunaError = null
+                },
                 label = { Text("Comuna") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -257,7 +289,11 @@ fun RegisterScreen(
         // --- TELÉFONO ---
         OutlinedTextField(
             value = telefono,
-            onValueChange = { if (it.length <= 9 && it.all { char -> char.isDigit() }) { telefono = it; telefonoError = null } },
+            onValueChange = { input ->
+                // LÍMITE: Solo números, máximo 9 caracteres
+                telefono = input.filter { it.isDigit() }.take(9)
+                telefonoError = null
+            },
             label = { Text("Teléfono (9 dígitos)") },
             prefix = { Text("+56 ") },
             modifier = Modifier.fillMaxWidth(),
@@ -272,7 +308,11 @@ fun RegisterScreen(
         // --- CONTRASEÑA ---
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it; passwordError = null },
+            onValueChange = { input ->
+                // LÍMITE: Sin espacios, máximo 50 caracteres
+                password = input.filter { !it.isWhitespace() }.take(50)
+                passwordError = null
+            },
             label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
