@@ -19,6 +19,15 @@ fun AppNavigation() {
     val mapViewModel: MapViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
 
+    // FUNCIÓN CENTRALIZADA PARA CERRAR SESIÓN
+    val performLogout = {
+        navController.navigate(Screen.Login.route) {
+            // Esto asegura que la pila de navegación se vacíe completamente
+            popUpTo(0) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Login.route
@@ -61,12 +70,8 @@ fun AppNavigation() {
             MainScreen(
                 navController = navController,
                 mapViewModel = mapViewModel,
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        // CORRECCIÓN: popUpTo(0) limpia TODO el backstack garantizando el cierre de sesión
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
+                // Usamos la función centralizada
+                onLogout = performLogout
             )
         }
 
@@ -77,11 +82,8 @@ fun AppNavigation() {
         composable(Screen.Perfil.route) {
             PerfilScreen(
                 navController = navController,
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
+                // Usamos la función centralizada
+                onLogout = performLogout
             )
         }
     }

@@ -116,11 +116,12 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
             OutlinedButton(
                 onClick = {
                     coroutineScope.launch {
-                        // Borramos los datos de manera asíncrona
                         tokenManager.clearSession()
+
+                        kotlinx.coroutines.Dispatchers.Main.dispatch(coroutineContext) {
+                            onLogout()
+                        }
                     }
-                    // Forzamos la navegación a ejecutarse inmediatamente fuera de la corrutina
-                    onLogout()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
