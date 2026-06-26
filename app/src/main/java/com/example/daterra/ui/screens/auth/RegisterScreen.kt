@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext // <-- Añadido
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -19,19 +20,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch // <-- Añadido para coroutineScope
 import com.example.daterra.ui.theme.*
 import com.example.daterra.ui.viewmodel.AuthState
 import com.example.daterra.ui.viewmodel.AuthViewModel
 import com.example.daterra.ui.viewmodel.UserRegisterRequest
+import com.example.daterra.data.local.TokenManager // <-- Asegúrate de que esta ruta es correcta según tu proyecto
 
 @Composable
 fun RegisterScreen(
+    authViewModel: AuthViewModel, // <-- Puesto primero para que coincida con tu NavHost
     onNavigateToLogin: () -> Unit,
-    onNavigateToMain: () -> Unit,
-    authViewModel: AuthViewModel = viewModel()
+    onNavigateToMain: () -> Unit
 ) {
     val authState by authViewModel.authState.collectAsState()
+
+    // --- NUEVAS HERRAMIENTAS PARA EL GUARDADO LOCAL ---
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Estados para los valores
     var rut by remember { mutableStateOf("") }
@@ -57,17 +64,16 @@ fun RegisterScreen(
     var telefonoError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
-    // Regex para validar solo letras y espacios (para el botón de registro)
     val soloLetrasRegex = "^[a-zA-ZáéíóúÁÉÍÓÚñÑ ]+$".toRegex()
 
+    // Manejador de navegación tras el registro
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
             onNavigateToMain() // Viaja a la pantalla principal
-            authViewModel.resetState() // Limpia el estado para futuras visitas
+            // authViewModel.resetState() // <-- Lo dejamos comentado para evitar que se limpie la sesión antes de tiempo
         }
     }
 
-    // Función de validación maestra
     fun validateForm(): Boolean {
         var isValid = true
 
@@ -143,7 +149,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = rut,
                 onValueChange = { input ->
-                    // LÍMITE: Solo números, máximo 8 caracteres
                     rut = input.filter { it.isDigit() }.take(8)
                     rutError = null
                 },
@@ -157,7 +162,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = dv,
                 onValueChange = { input ->
-                    // LÍMITE: Solo números o K, máximo 1 carácter, forzado a mayúscula
                     dv = input.filter { it.isDigit() || it.equals('k', ignoreCase = true) }.take(1).uppercase()
                     dvError = null
                 },
@@ -177,7 +181,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = primerNombre,
                 onValueChange = { input ->
-                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
                     primerNombre = input.filter { it.isLetter() || it == ' ' }.take(50)
                     pNombreError = null
                 },
@@ -191,7 +194,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = segundoNombre,
                 onValueChange = { input ->
-                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
                     segundoNombre = input.filter { it.isLetter() || it == ' ' }.take(50)
                 },
                 label = { Text("2do Nombre (Opc)") },
@@ -208,7 +210,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = primerApellido,
                 onValueChange = { input ->
-                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
                     primerApellido = input.filter { it.isLetter() || it == ' ' }.take(50)
                     pApellidoError = null
                 },
@@ -222,7 +223,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = segundoApellido,
                 onValueChange = { input ->
-                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
                     segundoApellido = input.filter { it.isLetter() || it == ' ' }.take(50)
                 },
                 label = { Text("2do Apellido (Opc)") },
@@ -238,7 +238,6 @@ fun RegisterScreen(
         OutlinedTextField(
             value = email,
             onValueChange = { input ->
-                // LÍMITE: Sin espacios, máximo 100 caracteres
                 email = input.filter { !it.isWhitespace() }.take(100)
                 emailError = null
             },
@@ -257,7 +256,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = direccion,
                 onValueChange = { input ->
-                    // LÍMITE: Máximo 100 caracteres (permite letras, números y puntuación básica para direcciones)
                     direccion = input.take(100)
                     direccionError = null
                 },
@@ -271,7 +269,6 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = comuna,
                 onValueChange = { input ->
-                    // LÍMITE: Solo letras y espacios, máximo 50 caracteres
                     comuna = input.filter { it.isLetter() || it == ' ' }.take(50)
                     comunaError = null
                 },
@@ -290,7 +287,6 @@ fun RegisterScreen(
         OutlinedTextField(
             value = telefono,
             onValueChange = { input ->
-                // LÍMITE: Solo números, máximo 9 caracteres
                 telefono = input.filter { it.isDigit() }.take(9)
                 telefonoError = null
             },
@@ -309,7 +305,6 @@ fun RegisterScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { input ->
-                // LÍMITE: Sin espacios, máximo 50 caracteres
                 password = input.filter { !it.isWhitespace() }.take(50)
                 passwordError = null
             },
@@ -322,7 +317,6 @@ fun RegisterScreen(
             supportingText = { if (passwordError != null) Text(passwordError!!, color = MaterialTheme.colorScheme.error) }
         )
 
-        // Mostrar mensaje de error general desde el ViewModel (si existe)
         if (authState is AuthState.Error) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -334,28 +328,44 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- BOTÓN REGISTRO ---
+        // --- BOTÓN REGISTRO (CORREGIDO) ---
         Button(
             onClick = {
                 if (validateForm()) {
                     val newUser = UserRegisterRequest(
-                        rut = rut,
-                        dv = dv,
+                        email = email,
+                        runUsuario = rut.toIntOrNull() ?: 0,
+                        dvrunUsuario = dv,
                         primerNombre = primerNombre,
                         segundoNombre = segundoNombre,
                         primerApellido = primerApellido,
                         segundoApellido = segundoApellido,
-                        email = email,
                         direccion = direccion,
-                        comuna = comuna,
-                        telefono = telefono,
-                        contrasena = password
+                        telefono = "+56$telefono",
+                        password = password,
+                        idTipoUsu = 2,
+                        idComuna = 1
                     )
+
+                    // 1. Guardamos localmente para que el perfil tenga los datos
+                    val nombreCompleto = "$primerNombre $primerApellido"
+                    coroutineScope.launch {
+                        tokenManager.saveTokenAndData(
+                            token = "registro_temporal",
+                            nombre = nombreCompleto,
+                            correo = email,
+                            comuna = comuna
+                        )
+                    }
+
+                    // 2. Enviamos la petición al servidor
                     authViewModel.registerUser(newUser)
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = DaterraPrimary),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
             enabled = authState !is AuthState.Loading
         ) {
             if (authState is AuthState.Loading) {

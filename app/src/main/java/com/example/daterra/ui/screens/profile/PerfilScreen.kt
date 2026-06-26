@@ -15,22 +15,38 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 import com.example.daterra.ui.screens.home.DaterraBottomNavigation
 import com.example.daterra.ui.theme.*
+import kotlinx.coroutines.flow.firstOrNull
+
+// IMPORTA TU TOKEN MANAGER
+import com.example.daterra.data.local.TokenManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
-    // ESTADOS PARA EL CRUD (Simulando lo que vendría de la Base de Datos)
+    // 1. INICIALIZAMOS EL TOKEN MANAGER
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val coroutineScope = rememberCoroutineScope() // Para lanzar la función de borrar sesión
+
+    // 2. LEEMOS LOS DATOS GUARDADOS (Si no hay nada, mostramos "Cargando...")
+    val nombreGuardado by tokenManager.getNombre.collectAsState(initial = "Cargando...")
+    val correoGuardado by tokenManager.getCorreo.collectAsState(initial = "Cargando...")
+    val comunaGuardada by tokenManager.getComuna.collectAsState(initial = "Cargando...")
+
     var isEditing by remember { mutableStateOf(false) }
 
-    var nombre by remember { mutableStateOf("Giuseppe") }
-    var correo by remember { mutableStateOf("giuseppe@daterra.cl") }
-    var comuna by remember { mutableStateOf("Ñuñoa") }
+    // Usamos los datos guardados como valor inicial de los TextFields
+    var nombreInput by remember(nombreGuardado) { mutableStateOf(nombreGuardado ?: "") }
+    var correoInput by remember(correoGuardado) { mutableStateOf(correoGuardado ?: "") }
+    var comunaInput by remember(comunaGuardada) { mutableStateOf(comunaGuardada ?: "") }
 
     Scaffold(
         containerColor = DaterraBackground,
@@ -45,7 +61,6 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            // SECCIÓN DE LECTURA / ACTUALIZACIÓN (Read / Update)
             Text(
                 text = "Datos Personales",
                 fontSize = 18.sp,
@@ -55,8 +70,8 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = nombre,
-                onValueChange = { nombre = it },
+                value = nombreInput,
+                onValueChange = { nombreInput = it },
                 label = { Text("Nombre") },
                 enabled = isEditing,
                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
@@ -72,10 +87,10 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = correo,
-                onValueChange = { correo = it },
+                value = correoInput,
+                onValueChange = { correoInput = it },
                 label = { Text("Correo Electrónico") },
-                enabled = isEditing, // Generalmente el correo no se edita tan fácil, pero lo dejamos por el MVP
+                enabled = isEditing,
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -89,8 +104,8 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = comuna,
-                onValueChange = { comuna = it },
+                value = comunaInput,
+                onValueChange = { comunaInput = it },
                 label = { Text("Comuna") },
                 enabled = isEditing,
                 leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
@@ -107,10 +122,14 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
 
             // BOTONES DE ACCIÓN
             if (isEditing) {
-                // Modo Edición: Botones para Guardar o Cancelar (Update)
                 Button(
                     onClick = {
-                        // Aquí iría la lógica para enviar el JSON a la API (Ej: PUT /usuarios/1)
+                        // AQUÍ GUARDAMOS LOS NUEVOS DATOS LOCALMENTE
+                        coroutineScope.launch {
+                            // CORRECCIÓN: Usamos firstOrNull() en vez de .value
+                            val tokenActual = tokenManager.getToken.firstOrNull() ?: ""
+                            tokenManager.saveTokenAndData(tokenActual, nombreInput, correoInput, comunaInput)
+                        }
                         isEditing = false
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -122,13 +141,18 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
-                    onClick = { isEditing = false },
+                    onClick = {
+                        // Si cancela, restauramos los valores originales
+                        nombreInput = nombreGuardado ?: ""
+                        correoInput = correoGuardado ?: ""
+                        comunaInput = comunaGuardada ?: ""
+                        isEditing = false
+                    },
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
                     Text("Cancelar", color = DaterraText)
                 }
             } else {
-                // Modo Lectura: Botones de Editar, Logout y Eliminar (Read / Delete)
                 Button(
                     onClick = { isEditing = true },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -139,10 +163,18 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
                     Text("Editar Perfil", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.weight(1f)) // Empuja los botones peligrosos hacia abajo
+                Spacer(modifier = Modifier.weight(1f))
 
+                // 3. BOTÓN DE CERRAR SESIÓN CON LÓGICA DE BORRADO
                 OutlinedButton(
-                    onClick = onLogout,
+                    onClick = {
+                        coroutineScope.launch {
+                            // Borramos el token y todos los datos del usuario del teléfono
+                            tokenManager.clearSession()
+                            // Navegamos al Login (llamando al callback que configuraste en AppNavigation)
+                            onLogout()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.DarkGray)
                 ) {
@@ -154,7 +186,7 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TextButton(
-                    onClick = { /* Lógica para eliminar de la Base de Datos: DELETE /usuarios/1 */ },
+                    onClick = { /* Lógica para eliminar cuenta en BD y luego llamar a onLogout() */ },
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
                     Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color.Red, modifier = Modifier.size(20.dp))

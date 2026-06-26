@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 // Importa tu cliente Retrofit y LoginRequest según tu estructura de paquetes
 import com.example.daterra.data.remote.api.RetrofitClient
 import com.example.daterra.data.remote.api.LoginRequest
+// IMPORTANTE: Importamos tu TokenManager
+import com.example.daterra.data.local.TokenManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,17 +23,18 @@ sealed class AuthState {
 
 // 2. Definimos el objeto exacto que enviaremos a la API para el Registro
 data class UserRegisterRequest(
-    val rut: String,
-    val dv: String,
+    val email: String,
+    val runUsuario: Int, // Cambió a Int
+    val dvrunUsuario: String,
     val primerNombre: String,
     val segundoNombre: String,
     val primerApellido: String,
     val segundoApellido: String,
-    val email: String,
     val direccion: String,
-    val comuna: String,
     val telefono: String,
-    val contrasena: String
+    val password: String, // Cambió de contrasena a password
+    val idTipoUsu: Int, // Nuevo campo
+    val idComuna: Int // Cambió de texto a número
 )
 
 class AuthViewModel : ViewModel() {
@@ -81,8 +84,13 @@ class AuthViewModel : ViewModel() {
                 if (response.isSuccessful && response.body() != null) {
                     val tokenRecibido = response.body()!!.token
 
-                    // ¡AQUÍ GUARDAMOS EL TOKEN EN EL TELÉFONO!
-                    tokenManager.saveToken(tokenRecibido)
+                    // AQUÍ ESTÁ LA CORRECCIÓN: Guardamos el token y los datos del perfil
+                    tokenManager.saveTokenAndData(
+                        token = tokenRecibido,
+                        nombre = "Giuseppe Saavedra Contreras", // Si luego actualizas LoginResponse, puedes poner response.body()!!.nombre
+                        correo = email,
+                        comuna = "Ñuñoa"
+                    )
 
                     _authState.value = AuthState.Authenticated(tokenRecibido)
                 } else {

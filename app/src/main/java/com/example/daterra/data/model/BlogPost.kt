@@ -7,4 +7,5 @@ data class BlogPost(
     val excerpt: String,
     val readTime: String,
     val url: String,
+    val imageRes: Int
 )

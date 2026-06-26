@@ -57,8 +57,7 @@ import com.google.android.gms.maps.model.LatLng
 fun MainScreen(
     navController: NavController,
     onLogout: () -> Unit,
-    mapViewModel: MapViewModel,
-    nombreUsuario: String = "Giuseppe"
+    mapViewModel: MapViewModel
 ) {
     var isMapExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -112,7 +111,6 @@ fun MainScreen(
                 navController = navController,
                 onExpandMap = { isMapExpanded = true },
                 onLogout = onLogout,
-                nombreUsuario = nombreUsuario,
                 puntos = puntos,
                 puntoDestacado = puntoDestacado
             )
@@ -125,7 +123,6 @@ fun HomeScreenContainer(
     navController: NavController,
     onExpandMap: () -> Unit,
     onLogout: () -> Unit,
-    nombreUsuario: String,
     puntos: List<PuntoReciclaje>,
     puntoDestacado: PuntoReciclaje?
 ) {
@@ -149,7 +146,7 @@ fun HomeScreenContainer(
                     .padding(bottom = 20.dp)
             ) {
                 Text(
-                    text = "¡Bienvenido, $nombreUsuario!",
+                    text = "¡Bienvenido!",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = DaterraText
@@ -164,8 +161,6 @@ fun HomeScreenContainer(
             }
 
             MapaPreviaSection(onMapClick = onExpandMap)
-            ElegantDivider()
-            EstadoTerritorioSection()
             ElegantDivider()
             QueReciclarHoySection()
             ElegantDivider()
@@ -268,56 +263,10 @@ fun HeaderSection() {
 }
 
 @Composable
-fun EstadoTerritorioSection() {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Estado del territorio", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
-            Text("Santiago Centro", fontSize = 12.sp, color = Color.Gray)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
-                    CircularProgressIndicator(progress = 0.78f, modifier = Modifier.size(80.dp), color = DaterraPrimary, strokeWidth = 8.dp)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("78%", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    EstadoItem(Icons.Default.TrendingUp, "+12 ton", "Valorizadas este mes")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    EstadoItem(Icons.Default.LocationOn, "92", "Puntos registrados")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    EstadoItem(Icons.Default.Home, "5", "Comunas mejorando")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun EstadoItem(icon: ImageVector, title: String, subtitle: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = DaterraPrimary, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(subtitle, fontSize = 12.sp, color = Color.Gray)
-        }
-    }
-}
-
-@Composable
 fun QueReciclarHoySection() {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Qué reciclar hoy", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DaterraText)
-            Text("Ver más", fontSize = 14.sp, color = DaterraPrimary, fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -594,7 +543,6 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
                             val uriContext = LocalContext.current
                             Button(
                                 onClick = {
-                                    // Funcionalidad nativa: Abre Google Maps con la ruta trazada
                                     val gmmIntentUri = Uri.parse("google.navigation:q=${punto.latitude},${punto.longitude}")
                                     val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
                                     mapIntent.setPackage("com.google.android.apps.maps")

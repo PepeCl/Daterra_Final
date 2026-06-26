@@ -2,6 +2,7 @@ package com.example.daterra.ui.screens.learn
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image // Importación nueva
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,18 +21,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.daterra.R
 import com.example.daterra.ui.theme.*
 import com.example.daterra.ui.screens.home.DaterraBottomNavigation
 import com.example.daterra.model.BlogPost
 
 
-// 2. AGREGAMOS EL PARÁMETRO onNavigate PARA QUE LA BARRA INFERIOR FUNCIONE
 @Composable
 fun AprenderScreen(navController: NavController) {
     val blogPosts = listOf(
@@ -40,40 +43,45 @@ fun AprenderScreen(navController: NavController) {
             "Guía de Reciclaje",
             "Guia definitiva sobre reciclaje",
             "7 min",
-            "https://santiagorecicla.mma.gob.cl/yo-reciclo/que-reciclo/"
+            "https://santiagorecicla.mma.gob.cl/yo-reciclo/que-reciclo/",
+            R.drawable.guiareciclaje
         ),
         BlogPost(
             2, "Vidrio",
             "Proceso del reciclaje de Vidrio",
             "Entérate del proceso que se lleva a cabo para reciclar vidrio. ¿Sabías que no todo el vidrio se recicla?",
             "5 min",
-            "https://www.leanpio.com/es/blog/proceso-reciclaje-del-vidrio"
+            "https://www.leanpio.com/es/blog/proceso-reciclaje-del-vidrio",
+            R.drawable.vidrio
         ),
         BlogPost(
             3, "Guia",
             "Prepara tu reciclaje para que sea retirado",
             "Acá encontrarás lo que necesitas saber para entregar tu reciclaje a los camiones municipales.",
             "5 min",
-            "https://www.gob.cl/noticias/guia-pasos-reciclar-tips-reciclaje-camion-ley-rep/"
+            "https://www.gob.cl/noticias/guia-pasos-reciclar-tips-reciclaje-camion-ley-rep/",
+            R.drawable.quereciclo
         ),
         BlogPost(
             4, "Información",
             "Calculadora de huella de carbono",
             "Calcula tu aporte a la reducción de la huella de carbono al reciclar",
             "3 min",
-            "https://www.recyclingtoday.org/es/pages/carbon-emission-reduction-calculator"
+            "https://www.recyclingtoday.org/es/pages/carbon-emission-reduction-calculator",
+            R.drawable.calculadoracarbono
         ),
         BlogPost(
             5, "Información",
             "Desafío Chile sin Basura 2040",
             "Conoce el proyecto Chile sin Basura 2040 y súmate a él !",
             "10 min",
-            "https://chilesinbasura.cl/quienes-somos/"
+            "https://chilesinbasura.cl/quienes-somos/",
+            R.drawable.chilesinbasura
         )
     )
 
     var selectedCategory by remember { mutableStateOf("Todos") }
-    // 3. ACTUALIZAMOS LOS FILTROS PARA QUE COINCIDAN CON TUS ARTÍCULOS
+    // Actualización de filtros
     val categories = listOf("Todos", "Guia", "Vidrio", "Información")
 
     Scaffold(
@@ -141,18 +149,15 @@ fun BlogCard(post: BlogPost) {
         shape = RoundedCornerShape(12.dp)
     ) {
         Column {
-            Box(
+            // === IMAGEN NATIVA ===
+            Image(
+                painter = painterResource(id = post.imageRes),
+                contentDescription = "Imagen de ${post.title}",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .background(Color(0xFFE0E0E0))
-            ) {
-                Text(
-                    text = "Foto de ${post.category}",
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.Gray
-                )
-            }
+                    .height(140.dp),
+                contentScale = ContentScale.Crop
+            )
 
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
