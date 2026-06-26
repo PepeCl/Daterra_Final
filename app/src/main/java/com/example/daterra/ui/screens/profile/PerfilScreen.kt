@@ -22,7 +22,7 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 import com.example.daterra.ui.screens.home.DaterraBottomNavigation
 import com.example.daterra.ui.theme.*
-
+import android.content.Intent
 import com.example.daterra.data.local.TokenManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,11 +116,15 @@ fun PerfilScreen(navController: NavController, onLogout: () -> Unit) {
             OutlinedButton(
                 onClick = {
                     coroutineScope.launch {
+                        // 1. Borramos los datos locales del DataStore
                         tokenManager.clearSession()
 
-                        kotlinx.coroutines.Dispatchers.Main.dispatch(coroutineContext) {
-                            onLogout()
+                        // 2. Reiniciamos la aplicación usando un Intent Nativo
+                        val intent = Intent(context, com.example.daterra.MainActivity::class.java).apply {
+                            // Estas banderas destruyen TODA la actividad actual y sus fragmentos
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
+                        context.startActivity(intent)
                     }
                 },
                 modifier = Modifier
