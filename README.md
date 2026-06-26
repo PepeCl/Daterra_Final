@@ -26,7 +26,7 @@ Arquitectura: MVVM (Model-View-ViewModel)
 
 Navegación: Jetpack Navigation Compose
 
-Conexión a Red: Retrofit2 + OkHttp3
+Conexión a Red: Retrofit2
 
 Almacenamiento Local: Preferences DataStore (Reemplazo moderno de SharedPreferences)
 
