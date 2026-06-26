@@ -11,15 +11,12 @@ import com.example.daterra.ui.screens.profile.PerfilScreen
 import com.example.daterra.ui.screens.auth.LoginScreen
 import com.example.daterra.ui.screens.auth.RegisterScreen
 import com.example.daterra.ui.viewmodel.MapViewModel
-// IMPORTA EL NUEVO VIEWMODEL
 import com.example.daterra.ui.viewmodel.AuthViewModel
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val mapViewModel: MapViewModel = viewModel()
-
-    // 1. INSTANCIA EL AUTHVIEWMODEL AQUÍ
     val authViewModel: AuthViewModel = viewModel()
 
     NavHost(
@@ -30,7 +27,7 @@ fun AppNavigation() {
 
         composable(Screen.Login.route) {
             LoginScreen(
-                authViewModel = authViewModel, // 2. PÁSALO AL LOGIN
+                authViewModel = authViewModel,
                 onNavigateToRegister = {
                     navController.navigate("registro")
                 },
@@ -44,7 +41,7 @@ fun AppNavigation() {
 
         composable("registro") {
             RegisterScreen(
-                authViewModel = authViewModel, // 3. PÁSALO TAMBIÉN AL REGISTRO (si ya lo actualizaste para recibirlo)
+                authViewModel = authViewModel,
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
@@ -66,7 +63,8 @@ fun AppNavigation() {
                 mapViewModel = mapViewModel,
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Inicio.route) { inclusive = true }
+                        // CORRECCIÓN: popUpTo(0) limpia TODO el backstack garantizando el cierre de sesión
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
@@ -81,7 +79,7 @@ fun AppNavigation() {
                 navController = navController,
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Inicio.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )

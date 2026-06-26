@@ -465,9 +465,7 @@ fun ExpandedMapScreen(mapViewModel: MapViewModel, onBack: () -> Unit) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
             }
             Text("Mapa del territorio", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            IconButton(onClick = { /* Filtros avanzados */ }) {
-                Icon(Icons.Outlined.Tune, contentDescription = "Filtros")
-            }
+            Spacer(modifier = Modifier.width(48.dp))
         }
 
         LazyRow(
